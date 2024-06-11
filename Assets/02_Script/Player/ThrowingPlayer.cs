@@ -1,6 +1,7 @@
 using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
+using UnityEngine.InputSystem;
 
 public class ThrowingPlayer : MonoBehaviour
 {
@@ -18,6 +19,29 @@ public class ThrowingPlayer : MonoBehaviour
 
     public List<GameObject> collidableObjects;
 
+    private PlayerControls controls;
+    private bool throwPressed;
+    private bool throwHeld;
+    private bool canChargeThrow;
+
+    void Awake()
+    {
+        controls = new PlayerControls();
+    }
+
+    void OnEnable()
+    {
+        controls.Gameplay.Enable();
+        controls.Gameplay.Throw.performed += OnThrowPerformed;
+        controls.Gameplay.Throw.canceled += OnThrowCanceled;
+    }
+
+    void OnDisable()
+    {
+        controls.Gameplay.Disable();
+        controls.Gameplay.Throw.performed -= OnThrowPerformed;
+        controls.Gameplay.Throw.canceled -= OnThrowCanceled;
+    }
 
     void Start()
     {
@@ -31,82 +55,64 @@ public class ThrowingPlayer : MonoBehaviour
     {
         PickUpDistance = Vector3.Distance(player.position, transform.position);
 
-        if (Input.GetKey(KeyCode.E) && itemIsPicked && readyToThrow)
+        // Handle charging throw force while holding the throw button
+        if (throwHeld && itemIsPicked && canChargeThrow)
         {
             forceMulti += 300 * Time.deltaTime;
             isThrown = true;
-
         }
 
+        // Handle picking up the item
         if (PickUpDistance <= 2)
         {
-            if (Input.GetKeyDown(KeyCode.E) && !itemIsPicked && PickUpPoint.childCount < 1)
+            if (throwPressed && !itemIsPicked && PickUpPoint.childCount < 1)
             {
                 rb.useGravity = false;
-                rb.isKinematic = true; // Set to kinematic when picked up
+                rb.isKinematic = true;
                 GetComponent<SphereCollider>().enabled = false;
-                transform.position = PickUpPoint.position; // Align position with pick up point
+                transform.position = PickUpPoint.position;
                 transform.parent = PickUpPoint;
 
                 itemIsPicked = true;
                 forceMulti = 0;
+                canChargeThrow = false; // Prevent charging throw immediately after picking up
 
                 if (player2Controller != null)
                 {
                     player2Controller.enabled = false;
                 }
-
             }
         }
 
-        if (Input.GetKeyUp(KeyCode.E) && itemIsPicked)
+        // Handle throwing the item
+        if (!throwHeld && itemIsPicked && isThrown)
         {
-            readyToThrow = true;
-
             if (forceMulti > 10)
             {
-                rb.isKinematic = false; // Set to non-kinematic when thrown
+                rb.isKinematic = false;
                 rb.useGravity = true;
                 transform.parent = null;
                 GetComponent<SphereCollider>().enabled = true;
 
-                // Apply the force in the player's forward direction
                 rb.AddForce(player.forward * forceMulti);
                 rb.AddForce(player.up * forceMulti);
 
                 itemIsPicked = false;
-                readyToThrow = false;
+                isThrown = false;
                 forceMulti = 0;
-
             }
-
             forceMulti = 0;
         }
 
-        //Spieler 2 (der aufgehoben wird) kann sich selber wieder lösen mit L -> muss auf Controller gestellt werden
-        if (Input.GetKeyUp(KeyCode.L) && itemIsPicked)
+        // Handle resetting the throw charge capability
+        if (!throwHeld && itemIsPicked)
         {
-            // Directly drop the item
-            rb.isKinematic = false;
-            rb.useGravity = true;
-            transform.parent = null;
-            GetComponent<SphereCollider>().enabled = true;
-
-            itemIsPicked = false;
-            readyToThrow = false;
-            forceMulti = 0;
-
-            // Enable Player2Controller when thrown
-            if (player2Controller != null)
-            {
-                player2Controller.enabled = true;
-            }
+            canChargeThrow = true;
         }
     }
 
     void OnCollisionEnter(Collision collision)
     {
-        // Enable Player2Controller when colliding with specified objects
         if (collidableObjects.Contains(collision.gameObject))
         {
             if (player2Controller != null)
@@ -116,4 +122,15 @@ public class ThrowingPlayer : MonoBehaviour
         }
     }
 
+    void OnThrowPerformed(InputAction.CallbackContext context)
+    {
+        throwHeld = true;
+        throwPressed = true;
+    }
+
+    void OnThrowCanceled(InputAction.CallbackContext context)
+    {
+        throwHeld = false;
+        throwPressed = false;
+    }
 }
