@@ -6,6 +6,8 @@ public class ThrowingPlayer : MonoBehaviour
 {
     private Transform PickUpPoint;
     private Transform player;
+    private Player2Controller player2Controller;
+    private Rigidbody rb;
 
     public float PickUpDistance;
     public float forceMulti;
@@ -14,13 +16,15 @@ public class ThrowingPlayer : MonoBehaviour
     public bool itemIsPicked;
     public bool isThrown;
 
-    private Rigidbody rb;
+    public List<GameObject> collidableObjects;
+
 
     void Start()
     {
         rb = GetComponent<Rigidbody>();
         player = GameObject.Find("Player 1").transform;
         PickUpPoint = GameObject.Find("PickUpPoint").transform;
+        player2Controller = GetComponent<Player2Controller>();
     }
 
     void Update()
@@ -46,6 +50,11 @@ public class ThrowingPlayer : MonoBehaviour
 
                 itemIsPicked = true;
                 forceMulti = 0;
+
+                if (player2Controller != null)
+                {
+                    player2Controller.enabled = false;
+                }
 
             }
         }
@@ -86,6 +95,24 @@ public class ThrowingPlayer : MonoBehaviour
             itemIsPicked = false;
             readyToThrow = false;
             forceMulti = 0;
+
+            // Enable Player2Controller when thrown
+            if (player2Controller != null)
+            {
+                player2Controller.enabled = true;
+            }
+        }
+    }
+
+    void OnCollisionEnter(Collision collision)
+    {
+        // Enable Player2Controller when colliding with specified objects
+        if (collidableObjects.Contains(collision.gameObject))
+        {
+            if (player2Controller != null)
+            {
+                player2Controller.enabled = true;
+            }
         }
     }
 
