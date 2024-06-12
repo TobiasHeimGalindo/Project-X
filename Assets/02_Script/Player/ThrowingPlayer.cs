@@ -1,6 +1,7 @@
 using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
+using UnityEngine.UI; // Für die Verwendung von UI-Elementen
 
 public class ThrowingPlayer : MonoBehaviour
 {
@@ -20,6 +21,7 @@ public class ThrowingPlayer : MonoBehaviour
 
     public List<GameObject> collidableObjects;
 
+    public Slider forceSlider; // UI-Slider zur Anzeige der Kraft
 
     void Start()
     {
@@ -28,6 +30,14 @@ public class ThrowingPlayer : MonoBehaviour
         PickUpPoint = GameObject.Find("PickUpPoint").transform;
         player2Controller = GetComponent<Player2Controller>();
         glidingController = GetComponent<GlidingController>();
+
+        // Initialisieren Sie den Slider
+        if (forceSlider != null)
+        {
+            forceSlider.minValue = 0;
+            forceSlider.maxValue = 300;
+            forceSlider.value = forceMulti;
+        }
     }
 
     void Update()
@@ -37,7 +47,14 @@ public class ThrowingPlayer : MonoBehaviour
         if (Input.GetKey(KeyCode.E) && itemIsPicked && readyToThrow)
         {
             forceMulti += 300 * Time.deltaTime;
+            forceMulti = Mathf.Clamp(forceMulti, 0, 300); // Begrenzen der Kraft auf 300
             isThrown = true;
+
+            // Aktualisieren Sie den Slider-Wert
+            if (forceSlider != null)
+            {
+                forceSlider.value = forceMulti;
+            }
         }
 
         if (PickUpDistance <= 2)
@@ -52,6 +69,11 @@ public class ThrowingPlayer : MonoBehaviour
 
                 itemIsPicked = true;
                 forceMulti = 0;
+
+                if (forceSlider != null)
+                {
+                    forceSlider.value = forceMulti;
+                }
 
                 if (player2Controller != null)
                 {
@@ -80,11 +102,16 @@ public class ThrowingPlayer : MonoBehaviour
                 if (glidingController != null)
                 {
                     glidingController.enabled = true;
-                    glidingController.StartGliding(); // Call a method to start gliding
+                    glidingController.StartGliding(); // Eine Methode zum Starten des Gleitens aufrufen
                 }
             }
 
             forceMulti = 0;
+
+            if (forceSlider != null)
+            {
+                forceSlider.value = forceMulti;
+            }
         }
 
         if (Input.GetKeyUp(KeyCode.L) && itemIsPicked)
@@ -97,6 +124,11 @@ public class ThrowingPlayer : MonoBehaviour
             itemIsPicked = false;
             readyToThrow = false;
             forceMulti = 0;
+
+            if (forceSlider != null)
+            {
+                forceSlider.value = forceMulti;
+            }
 
             if (player2Controller != null)
             {
