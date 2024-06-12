@@ -7,6 +7,8 @@ public class ThrowingPlayer : MonoBehaviour
     private Transform PickUpPoint;
     private Transform player;
     private Player2Controller player2Controller;
+
+    private GlidingController glidingController;
     private Rigidbody rb;
 
     public float PickUpDistance;
@@ -25,6 +27,7 @@ public class ThrowingPlayer : MonoBehaviour
         player = GameObject.Find("Player 1").transform;
         PickUpPoint = GameObject.Find("PickUpPoint").transform;
         player2Controller = GetComponent<Player2Controller>();
+        glidingController = GetComponent<GlidingController>();
     }
 
     void Update()
@@ -35,7 +38,6 @@ public class ThrowingPlayer : MonoBehaviour
         {
             forceMulti += 300 * Time.deltaTime;
             isThrown = true;
-
         }
 
         if (PickUpDistance <= 2)
@@ -43,9 +45,9 @@ public class ThrowingPlayer : MonoBehaviour
             if (Input.GetKeyDown(KeyCode.E) && !itemIsPicked && PickUpPoint.childCount < 1)
             {
                 rb.useGravity = false;
-                rb.isKinematic = true; // Set to kinematic when picked up
+                rb.isKinematic = true;
                 GetComponent<SphereCollider>().enabled = false;
-                transform.position = PickUpPoint.position; // Align position with pick up point
+                transform.position = PickUpPoint.position;
                 transform.parent = PickUpPoint;
 
                 itemIsPicked = true;
@@ -55,7 +57,6 @@ public class ThrowingPlayer : MonoBehaviour
                 {
                     player2Controller.enabled = false;
                 }
-
             }
         }
 
@@ -65,12 +66,10 @@ public class ThrowingPlayer : MonoBehaviour
 
             if (forceMulti > 10)
             {
-                rb.isKinematic = false; // Set to non-kinematic when thrown
+                rb.isKinematic = false;
                 rb.useGravity = true;
                 transform.parent = null;
                 GetComponent<SphereCollider>().enabled = true;
-
-                // Apply the force in the player's forward direction
                 rb.AddForce(player.forward * forceMulti);
                 rb.AddForce(player.up * forceMulti);
 
@@ -78,15 +77,18 @@ public class ThrowingPlayer : MonoBehaviour
                 readyToThrow = false;
                 forceMulti = 0;
 
+                if (glidingController != null)
+                {
+                    glidingController.enabled = true;
+                    glidingController.StartGliding(); // Call a method to start gliding
+                }
             }
 
             forceMulti = 0;
         }
 
-        //Spieler 2 (der aufgehoben wird) kann sich selber wieder lösen mit L -> muss auf Controller gestellt werden
         if (Input.GetKeyUp(KeyCode.L) && itemIsPicked)
         {
-            // Directly drop the item
             rb.isKinematic = false;
             rb.useGravity = true;
             transform.parent = null;
@@ -96,24 +98,31 @@ public class ThrowingPlayer : MonoBehaviour
             readyToThrow = false;
             forceMulti = 0;
 
-            // Enable Player2Controller when thrown
             if (player2Controller != null)
             {
                 player2Controller.enabled = true;
+            }
+
+            if (glidingController != null)
+            {
+                glidingController.enabled = false;
             }
         }
     }
 
     void OnCollisionEnter(Collision collision)
     {
-        // Enable Player2Controller when colliding with specified objects
         if (collidableObjects.Contains(collision.gameObject))
         {
             if (player2Controller != null)
             {
                 player2Controller.enabled = true;
             }
+
+            if (glidingController != null)
+            {
+                glidingController.enabled = false;
+            }
         }
     }
-
 }
