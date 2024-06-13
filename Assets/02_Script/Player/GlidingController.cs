@@ -1,6 +1,5 @@
-using System.Collections;
-using System.Collections.Generic;
 using UnityEngine;
+using UnityEngine.InputSystem;
 
 public class GlidingController : MonoBehaviour
 {
@@ -8,25 +7,36 @@ public class GlidingController : MonoBehaviour
     public float moveSpeed = 5f;
 
     private Rigidbody rb;
-
+    private Gamepad gamepad;
     private bool isGliding = false;
 
     void Start()
     {
         rb = GetComponent<Rigidbody>();
+
+        // Assign the second connected gamepad to Player 2
+        if (Gamepad.all.Count > 1)
+        {
+            gamepad = Gamepad.all[1];
+        }
+        else
+        {
+            Debug.LogError("No second gamepad connected for Player 2");
+        }
     }
 
     void FixedUpdate()
     {
         if (isGliding)
         {
+            if (gamepad == null) return;
+
             // Apply upward force to simulate gliding
             rb.AddForce(Vector3.up * glideForce);
 
-            // Control the gliding direction using arrow keys
-            float horizontalInput = Input.GetAxis("Horizontal 2");
-            float verticalInput = Input.GetAxis("Vertical 2");
-            Vector3 moveDirection = new Vector3(horizontalInput, verticalInput, 0f).normalized;
+            // Control the gliding direction using the left stick of the gamepad
+            Vector2 moveInput = gamepad.leftStick.ReadValue();
+            Vector3 moveDirection = new Vector3(moveInput.x, moveInput.y, 0f).normalized;
             rb.AddForce(moveDirection * moveSpeed);
         }
     }

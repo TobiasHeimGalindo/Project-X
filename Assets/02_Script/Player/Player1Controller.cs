@@ -1,6 +1,5 @@
-using System.Collections;
-using System.Collections.Generic;
 using UnityEngine;
+using UnityEngine.InputSystem;
 
 public class Player1Controller : MonoBehaviour
 {
@@ -8,49 +7,67 @@ public class Player1Controller : MonoBehaviour
     public float sprintMultiplier = 2f;
     public float jumpForce = 10f;
     private Rigidbody rb;
+    private Vector2 moveInput;
+    private bool isSprinting;
+    private bool jumpPressed;
+    private Gamepad gamepad;
 
     void Start()
     {
         rb = GetComponent<Rigidbody>();
+
+        // Assign the first connected gamepad to Player 1
+        if (Gamepad.all.Count > 0)
+        {
+            gamepad = Gamepad.all[0];
+        }
+        else
+        {
+            Debug.LogError("No gamepad connected for Player 1");
+        }
     }
 
     void Update()
     {
-        // Eingaben erfassen - Laufen links und rechts
-        float moveX = Input.GetAxisRaw("Horizontal 1"); // A/D oder Pfeiltasten links/rechts (-1, 0, 1)
-        float moveZ = Input.GetAxisRaw("Vertical 1");   // W/S oder Pfeiltasten hoch/runter (-1, 0, 1)
+        if (gamepad == null) return;
 
-        // Bewegungsgeschwindigkeit anpassen
+        // Move input
+        moveInput = gamepad.leftStick.ReadValue();
 
-        float currentMoveSpeed = moveSpeed; // Aktuelle Bewegungsgeschwindigkeit
-
-        if (Input.GetKey(KeyCode.LeftShift))
+        // Sprint input
+        if (gamepad.leftStickButton.wasPressedThisFrame)
         {
-            currentMoveSpeed += sprintMultiplier; // Wenn Shift gedrückt und der Spieler sich nach vorne bewegt, erhöhe die Geschwindigkeit
+            isSprinting = !isSprinting;
         }
 
-        // Bewegung berechnen
-        Vector3 move = new Vector3(moveX, 0f, moveZ).normalized * currentMoveSpeed * Time.deltaTime;
+        // Jump input
+        if (gamepad.buttonSouth.wasPressedThisFrame)
+        {
+            jumpPressed = true;
+        }
 
-        // Spieler bewegen
+        // Adjust movement speed
+        float currentMoveSpeed = isSprinting ? moveSpeed + sprintMultiplier : moveSpeed;
+
+        // Calculate movement
+        Vector3 move = new Vector3(moveInput.x, 0f, moveInput.y) * currentMoveSpeed * Time.deltaTime;
+
+        // Move player
         transform.Translate(move, Space.Self);
 
-        // Springen, wenn Leertaste gedrückt wird
-        if (Input.GetKeyDown(KeyCode.Space))
+        // Handle jumping
+        if (jumpPressed)
         {
             Jump();
+            jumpPressed = false; // Reset jump
         }
-
     }
 
     void Jump()
     {
-        // Überprüfen, ob der Spieler auf dem Boden ist, bevor er springt
         if (Mathf.Abs(rb.velocity.y) < 0.001f)
         {
             rb.AddForce(Vector3.up * jumpForce, ForceMode.Impulse);
         }
     }
 }
-
-

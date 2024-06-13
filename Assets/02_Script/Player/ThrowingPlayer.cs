@@ -1,27 +1,29 @@
-using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
-using UnityEngine.UI; // Für die Verwendung von UI-Elementen
+using UnityEngine.InputSystem;
+using UnityEngine.UI; // For using UI elements
 
 public class ThrowingPlayer : MonoBehaviour
 {
     private Transform PickUpPoint;
     private Transform player;
     private Player2Controller player2Controller;
-
     private GlidingController glidingController;
     private Rigidbody rb;
 
     public float PickUpDistance;
     public float forceMulti;
-
     public bool readyToThrow;
     public bool itemIsPicked;
     public bool isThrown;
 
     public List<GameObject> collidableObjects;
+    public Slider forceSlider; // UI-Slider to display force
 
-    public Slider forceSlider; // UI-Slider zur Anzeige der Kraft
+    private Gamepad gamepad;
+    private bool throwPressed;
+    private bool throwHeld;
+    private bool canChargeThrow;
 
     void Start()
     {
@@ -31,7 +33,17 @@ public class ThrowingPlayer : MonoBehaviour
         player2Controller = GetComponent<Player2Controller>();
         glidingController = GetComponent<GlidingController>();
 
-        // Initialisieren Sie den Slider
+        // Assign the first connected gamepad to this player
+        if (Gamepad.all.Count > 0)
+        {
+            gamepad = Gamepad.all[0];
+        }
+        else
+        {
+            Debug.LogError("No gamepad connected for Player 1");
+        }
+
+        // Initialize the slider
         if (forceSlider != null)
         {
             forceSlider.minValue = 0;
@@ -42,32 +54,64 @@ public class ThrowingPlayer : MonoBehaviour
 
     void Update()
     {
+        if (gamepad == null) return;
+
         PickUpDistance = Vector3.Distance(player.position, transform.position);
 
-        if (Input.GetKey(KeyCode.E) && itemIsPicked && readyToThrow)
+        // Charge throw force while holding the throw button
+        if (throwHeld && itemIsPicked && canChargeThrow)
         {
             forceMulti += 300 * Time.deltaTime;
-            forceMulti = Mathf.Clamp(forceMulti, 0, 300); // Begrenzen der Kraft auf 300
+            forceMulti = Mathf.Clamp(forceMulti, 0, 300); // Clamp force to 300
             isThrown = true;
 
-            // Aktualisieren Sie den Slider-Wert
+            // Update slider value
             if (forceSlider != null)
             {
                 forceSlider.value = forceMulti;
             }
         }
 
-        if (PickUpDistance <= 2)
+        // Handle picking up the item
+        if (PickUpDistance <= 2 && !itemIsPicked && PickUpPoint.childCount < 1 && throwPressed)
         {
-            if (Input.GetKeyDown(KeyCode.E) && !itemIsPicked && PickUpPoint.childCount < 1)
-            {
-                rb.useGravity = false;
-                rb.isKinematic = true;
-                GetComponent<SphereCollider>().enabled = false;
-                transform.position = PickUpPoint.position;
-                transform.parent = PickUpPoint;
+            rb.useGravity = false;
+            rb.isKinematic = true;
+            GetComponent<SphereCollider>().enabled = false;
+            transform.position = PickUpPoint.position;
+            transform.parent = PickUpPoint;
 
-                itemIsPicked = true;
+            itemIsPicked = true;
+            forceMulti = 0;
+
+            if (forceSlider != null)
+            {
+                forceSlider.value = forceMulti;
+            }
+
+            if (player2Controller != null)
+            {
+                player2Controller.enabled = false;
+            }
+
+            throwPressed = false; // Reset throwPressed after picking up the item
+        }
+
+        // Handle throwing the item
+        if (itemIsPicked && isThrown && !throwHeld)
+        {
+            if (forceMulti > 10)
+            {
+                rb.isKinematic = false;
+                rb.useGravity = true;
+                transform.parent = null;
+                GetComponent<SphereCollider>().enabled = true;
+
+                rb.AddForce(player.forward * forceMulti);
+                rb.AddForce(player.up * forceMulti);
+
+                itemIsPicked = false;
+                isThrown = false;
                 forceMulti = 0;
 
                 if (forceSlider != null)
@@ -75,34 +119,10 @@ public class ThrowingPlayer : MonoBehaviour
                     forceSlider.value = forceMulti;
                 }
 
-                if (player2Controller != null)
-                {
-                    player2Controller.enabled = false;
-                }
-            }
-        }
-
-        if (Input.GetKeyUp(KeyCode.E) && itemIsPicked)
-        {
-            readyToThrow = true;
-
-            if (forceMulti > 10)
-            {
-                rb.isKinematic = false;
-                rb.useGravity = true;
-                transform.parent = null;
-                GetComponent<SphereCollider>().enabled = true;
-                rb.AddForce(player.forward * forceMulti);
-                rb.AddForce(player.up * forceMulti);
-
-                itemIsPicked = false;
-                readyToThrow = false;
-                forceMulti = 0;
-
                 if (glidingController != null)
                 {
                     glidingController.enabled = true;
-                    glidingController.StartGliding(); // Eine Methode zum Starten des Gleitens aufrufen
+                    glidingController.StartGliding(); // Call a method to start gliding
                 }
             }
 
@@ -114,7 +134,14 @@ public class ThrowingPlayer : MonoBehaviour
             }
         }
 
-        if (Input.GetKeyUp(KeyCode.L) && itemIsPicked)
+        // Reset the throw charge capability when the throw button is released
+        if (!throwHeld && itemIsPicked)
+        {
+            canChargeThrow = true;
+        }
+
+        // Handle dropping the item
+        if (gamepad.buttonWest.wasPressedThisFrame && itemIsPicked)
         {
             rb.isKinematic = false;
             rb.useGravity = true;
@@ -140,6 +167,17 @@ public class ThrowingPlayer : MonoBehaviour
                 glidingController.enabled = false;
             }
         }
+
+        // Check for throw button press
+        if (gamepad.buttonNorth.wasPressedThisFrame)
+        {
+            OnThrowPerformed();
+        }
+
+        if (!gamepad.buttonNorth.isPressed)
+        {
+            OnThrowCanceled();
+        }
     }
 
     void OnCollisionEnter(Collision collision)
@@ -155,6 +193,28 @@ public class ThrowingPlayer : MonoBehaviour
             {
                 glidingController.enabled = false;
             }
+        }
+    }
+
+    void OnThrowPerformed()
+    {
+        if (itemIsPicked && canChargeThrow)
+        {
+            throwHeld = true;
+        }
+        else if (!itemIsPicked)
+        {
+            throwPressed = true;
+        }
+    }
+
+    void OnThrowCanceled()
+    {
+        throwHeld = false;
+
+        if (itemIsPicked)
+        {
+            isThrown = true;
         }
     }
 }

@@ -1,6 +1,5 @@
-using System.Collections;
-using System.Collections.Generic;
 using UnityEngine;
+using UnityEngine.InputSystem;
 
 public class Player2Controller : MonoBehaviour
 {
@@ -8,47 +7,114 @@ public class Player2Controller : MonoBehaviour
     public float sprintMultiplier = 2f;
     public float jumpForce = 10f;
     private Rigidbody rb;
+    private Vector2 moveInput;
+    private bool isSprinting;
+    private bool jumpPressed;
+    private bool isGliding;
+    private Gamepad gamepad;
+    private GlidingController glidingController;
+
+    void Awake()
+    {
+        // Initialize the GlidingController
+        glidingController = GetComponent<GlidingController>();
+    }
 
     void Start()
     {
         rb = GetComponent<Rigidbody>();
+
+        // Assign the second connected gamepad to Player 2
+        if (Gamepad.all.Count > 1)
+        {
+            gamepad = Gamepad.all[1];
+        }
+        else
+        {
+            Debug.LogError("No second gamepad connected for Player 2");
+        }
     }
 
     void Update()
     {
-        // Eingaben erfassen - Laufen links und rechts
-        float moveX = Input.GetAxisRaw("Horizontal 2"); // A/D oder Pfeiltasten links/rechts (-1, 0, 1)
-        float moveZ = Input.GetAxisRaw("Vertical 2");   // W/S oder Pfeiltasten hoch/runter (-1, 0, 1)
+        if (gamepad == null) return;
 
-        // Bewegungsgeschwindigkeit anpassen
+        // Move input
+        moveInput = gamepad.leftStick.ReadValue();
 
-        float currentMoveSpeed = moveSpeed; // Aktuelle Bewegungsgeschwindigkeit
-
-        if (Input.GetKey(KeyCode.RightShift))
+        // Sprint input
+        if (gamepad.leftStickButton.wasPressedThisFrame)
         {
-            currentMoveSpeed += sprintMultiplier; // Wenn Shift gedrückt und der Spieler sich nach vorne bewegt, erhöhe die Geschwindigkeit
+            isSprinting = !isSprinting;
         }
 
-        // Bewegung berechnen
-        Vector3 move = new Vector3(moveX, 0f, moveZ).normalized * currentMoveSpeed * Time.deltaTime;
+        // Jump input
+        if (gamepad.buttonSouth.wasPressedThisFrame)
+        {
+            jumpPressed = true;
+        }
 
-        // Spieler bewegen
+        // Toggle gliding with right bumper (buttonR1)
+        if (gamepad.rightShoulder.wasPressedThisFrame)
+        {
+            isGliding = !isGliding;
+            if (isGliding)
+            {
+                glidingController.StartGliding();
+            }
+            else
+            {
+                glidingController.StopGliding();
+            }
+        }
+
+        // Adjust movement speed
+        float currentMoveSpeed = isSprinting ? moveSpeed + sprintMultiplier : moveSpeed;
+
+        // Calculate movement
+        Vector3 move = new Vector3(moveInput.x, 0f, moveInput.y) * currentMoveSpeed * Time.deltaTime;
+
+        // Move player
         transform.Translate(move, Space.Self);
 
-
-        // Springen, wenn Leertaste gedrückt wird
-        if (Input.GetKeyDown(KeyCode.M))
+        // Handle jumping
+        if (jumpPressed)
         {
             Jump();
+            jumpPressed = false; // Reset jump
         }
     }
 
     void Jump()
     {
-        // Überprüfen, ob der Spieler auf dem Boden ist, bevor er springt
         if (Mathf.Abs(rb.velocity.y) < 0.001f)
         {
             rb.AddForce(Vector3.up * jumpForce, ForceMode.Impulse);
+        }
+    }
+
+    void OnCollisionEnter(Collision collision)
+    {
+        if (collision.collider is TerrainCollider)
+        {
+            StopGliding();
+        }
+    }
+
+    void OnCollisionStay(Collision collision)
+    {
+        if (collision.collider is TerrainCollider)
+        {
+            StopGliding();
+        }
+    }
+
+    private void StopGliding()
+    {
+        if (isGliding)
+        {
+            isGliding = false;
+            glidingController.StopGliding();
         }
     }
 }
